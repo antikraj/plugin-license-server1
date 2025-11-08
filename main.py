@@ -45,14 +45,23 @@ def verify_license():
     info = licenses[key]
     now = datetime.now()
 
-    # ✅ Check plugin match
+    # # ✅ Check plugin match
+    # stored_plugin = info.get("plugin", "").lower().strip()
+    # if stored_plugin and plugin_name and stored_plugin != plugin_name:
+    #     return jsonify({
+    #         "valid": False,
+    #         "reason": "wrong_plugin",
+    #         "expected_plugin": stored_plugin
+    #     }), 403
+    # ✅ Enforce plugin match strictly
     stored_plugin = info.get("plugin", "").lower().strip()
-    if stored_plugin and plugin_name and stored_plugin != plugin_name:
-        return jsonify({
-            "valid": False,
-            "reason": "wrong_plugin",
-            "expected_plugin": stored_plugin
-        }), 403
+    if not plugin_name or stored_plugin != plugin_name:
+                return jsonify({
+                    "valid": False,
+                    "reason": "wrong_plugin_or_missing",
+                    "expected_plugin": stored_plugin
+                }), 403
+
 
     expires = datetime.strptime(info["expires"], "%Y-%m-%d")
     if now > expires:

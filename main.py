@@ -149,6 +149,49 @@ def backup():
             "Content-Disposition": "attachment; filename=licenses_backup.json"
         }
 
+@app.route("/generate", methods=["POST", "GET"])
+def generate_license():
+    auth = request.args.get("auth")
+    if auth != ADMIN_PASSWORD:
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    user = request.args.get("user", "unknown")
+    days = request.args.get("days", DEFAULT_EXPIRY_DAYS)
+    try:
+        days = int(days)
+    except ValueError:
+        days = DEFAULT_EXPIRY_DAYS
+
+    key = generate_key()
+    expires = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+
+    licenses[key] = {"user": user, "expires": expires}
+    save_licenses()
+
+    return jsonify({
+        "success": True,
+        "key": key,
+        "user": user,
+        "expires": expires
+    })
+
+# 🗑️ ADMIN: Delete a license
+@app.route("/delete", methods=["POST"])
+def delete_license():
+    auth = request.args.get("auth")
+    key = request.args.get("key")
+
+    if auth != ADMIN_PASSWORD:
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    if key not in licenses:
+        return jsonify({"success": False, "error": "License not found"}), 404
+
+    del licenses[key]
+    save_licenses()
+
+    return jsonify({"success": True, "message": f"🗑️ License {key} deleted successfully."})
+
 
 # @app.route("/generate", methods=["POST"])
 # def generate_license():
@@ -511,6 +554,123 @@ def release_license():
 
 #     return render_template_string(html, licenses=licenses, admin_pass=ADMIN_PASSWORD)
 
+# @app.route("/admin")
+# def admin_dashboard():
+#     auth = request.args.get("auth")
+#     if auth != ADMIN_PASSWORD:
+#         return "<h2>❌ Unauthorized</h2><p>Missing or incorrect ?auth= password in URL.</p>", 403
+
+#     html = """
+#     <!DOCTYPE html>
+#     <html>
+#     <head>
+#       <title>License Manager</title>
+#       <style>
+#         body { font-family: Arial, sans-serif; background: #f5f6fa; margin: 40px; color: #2f3640; }
+#         h1 { color: #192a56; }
+#         table { border-collapse: collapse; width: 100%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+#         th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+#         th { background: #718093; color: white; }
+#         tr:nth-child(even) { background: #f1f2f6; }
+#         tr.expired { background: #ff7675 !important; color: white; }      /* red */
+#         tr.warning { background: #fbc531 !important; color: black; }     /* yellow */
+#         tr.active { background: #44bd32 !important; color: white; }      /* green */
+#         tr.unbound { background: #dcdde1 !important; color: #2f3640; }   /* gray */
+#         button { padding: 6px 10px; margin: 2px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+#         .delete { background: #e84118; color: white; }
+#         .expire { background: #f39c12; color: white; }
+#         .extend { background: #44bd32; color: white; }
+#         .unbind { background: #0097e6; color: white; }
+#         .download { background: #8c7ae6; color: white; padding: 8px 15px; }
+#         input { padding: 6px; margin-right: 5px; border-radius: 4px; border: 1px solid #ccc; }
+#         form { margin-bottom: 20px; }
+#       </style>
+#     </head>
+#     <body>
+#       <h1>🔐 License Manager Dashboard</h1>
+#       <p>Welcome, Admin!</p>
+
+#       <form id="createForm">
+#         <input type="text" id="username" placeholder="User name" required>
+#         <input type="number" id="days" placeholder="Days" value="30" required>
+#         <button type="submit" class="extend">➕ Create License</button>
+#         <button type="button" class="download" onclick="window.location='/backup?auth={{admin_pass}}'">💾 Download Data</button>
+#       </form>
+
+#       <table>
+#         <tr><th>Key</th><th>User</th><th>Expires</th><th>Bound To</th><th>In Use</th><th>Actions</th></tr>
+#         {% for k, v in licenses.items() %}
+#         {% set cls = '' %}
+#         {% set exp = v['expires'] %}
+#         {% set bound = v.get('bound_to', '-') %}
+#         {% set in_use = v.get('in_use', False) %}
+#         {% set days_left = (datetime.strptime(exp, '%Y-%m-%d') - datetime.now()).days %}
+
+#         {% if days_left < 0 %}
+#           {% set cls = 'expired' %}
+#         {% elif days_left <= 7 %}
+#           {% set cls = 'warning' %}
+#         {% elif not bound or bound == '-' %}
+#           {% set cls = 'unbound' %}
+#         {% else %}
+#           {% set cls = 'active' %}
+#         {% endif %}
+
+#         <tr class="{{ cls }}">
+#           <td>{{ k }}</td>
+#           <td>{{ v['user'] }}</td>
+#           <td>{{ v['expires'] }}</td>
+#           <td>{{ bound }}</td>
+#           <td>{{ '🟢' if in_use else '⚫' }}</td>
+#           <td>
+#             <button class="extend" onclick="extendLicense('{{k}}')">Extend</button>
+#             <button class="expire" onclick="action('expire', '{{k}}')">Expire</button>
+#             <button class="unbind" onclick="action('unbind', '{{k}}')">Unbind</button>
+#             <button class="delete" onclick="action('delete', '{{k}}')">Delete</button>
+#           </td>
+#         </tr>
+#         {% endfor %}
+#       </table>
+
+#       <script>
+#       async function action(type, key) {
+#         const res = await fetch(`/${type}?key=${key}&auth={{admin_pass}}`, { method: "POST" });
+#         const data = await res.json();
+#         alert(data.message || JSON.stringify(data));
+#         location.reload();
+#       }
+
+#       async function extendLicense(key) {
+#         const days = prompt("Enter number of days to extend:");
+#         if (!days) return;
+#         const res = await fetch(`/extend?key=${key}&days=${days}&auth={{admin_pass}}`, { method: "POST" });
+#         const data = await res.json();
+#         alert(data.message || JSON.stringify(data));
+#         location.reload();
+#       }
+
+#       document.getElementById("createForm").addEventListener("submit", async (e) => {
+#         e.preventDefault();
+#         const user = document.getElementById("username").value;
+#         const days = document.getElementById("days").value;
+#         const url = `/generate?user=${user}&days=${days}&auth={{admin_pass}}`;
+#         const res = await fetch(url, { method: "POST" });
+#         const data = await res.json();
+#         alert("✅ New License Created: " + data.key);
+#         location.reload();
+#       });
+#       </script>
+#     </body>
+#     </html>
+#     """
+
+#     return render_template_string(
+#         html,
+#         licenses=licenses,
+#         admin_pass=ADMIN_PASSWORD,
+#         datetime=datetime
+#     )
+
 @app.route("/admin")
 def admin_dashboard():
     auth = request.args.get("auth")
@@ -541,6 +701,7 @@ def admin_dashboard():
         .download { background: #8c7ae6; color: white; padding: 8px 15px; }
         input { padding: 6px; margin-right: 5px; border-radius: 4px; border: 1px solid #ccc; }
         form { margin-bottom: 20px; }
+        #searchBox { width: 40%; padding: 8px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; }
       </style>
     </head>
     <body>
@@ -554,7 +715,9 @@ def admin_dashboard():
         <button type="button" class="download" onclick="window.location='/backup?auth={{admin_pass}}'">💾 Download Data</button>
       </form>
 
-      <table>
+      <input type="text" id="searchBox" placeholder="🔍 Search by user, key, or bound server...">
+
+      <table id="licenseTable">
         <tr><th>Key</th><th>User</th><th>Expires</th><th>Bound To</th><th>In Use</th><th>Actions</th></tr>
         {% for k, v in licenses.items() %}
         {% set cls = '' %}
@@ -590,6 +753,17 @@ def admin_dashboard():
       </table>
 
       <script>
+      // 🔍 Search Filter
+      const searchBox = document.getElementById("searchBox");
+      searchBox.addEventListener("keyup", () => {
+        const filter = searchBox.value.toLowerCase();
+        document.querySelectorAll("#licenseTable tr").forEach((row, i) => {
+          if (i === 0) return; // skip header row
+          const text = row.innerText.toLowerCase();
+          row.style.display = text.includes(filter) ? "" : "none";
+        });
+      });
+
       async function action(type, key) {
         const res = await fetch(`/${type}?key=${key}&auth={{admin_pass}}`, { method: "POST" });
         const data = await res.json();
@@ -627,6 +801,7 @@ def admin_dashboard():
         admin_pass=ADMIN_PASSWORD,
         datetime=datetime
     )
+
 
 
 # ==========================

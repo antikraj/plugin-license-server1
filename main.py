@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template_string
 import json, os, random, string
 from datetime import datetime, timedelta
 
@@ -129,6 +129,66 @@ def unbind_license():
     save_licenses()
 
     return jsonify({"success": True, "message": "License unbound successfully"})
+
+
+# 🧭 ADMIN DASHBOARD PAGE
+@app.route("/admin")
+def admin_dashboard():
+    auth = request.args.get("auth")
+    if auth != ADMIN_PASSWORD:
+        return "<h2>❌ Unauthorized</h2><p>Missing or incorrect ?auth= password in URL.</p>", 403
+
+    html = """
+    <html>
+    <head>
+      <title>License Dashboard</title>
+      <style>
+        body { font-family: Arial; background: #f3f3f3; margin: 20px; }
+        h1 { color: #222; }
+        table { border-collapse: collapse; width: 100%; background: white; }
+        th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+        th { background: #eee; }
+        tr:hover { background: #f9f9f9; }
+        button { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; }
+        .delete { background: #e74c3c; color: white; }
+        .expire { background: #f39c12; color: white; }
+        .unbind { background: #3498db; color: white; }
+      </style>
+    </head>
+    <body>
+      <h1>🔐 License Manager</h1>
+      <p>Logged in as <b>admin</b></p>
+      <table>
+        <tr><th>Key</th><th>User</th><th>Expires</th><th>Bound To</th><th>Actions</th></tr>
+        {% for k, v in licenses.items() %}
+          <tr>
+            <td>{{ k }}</td>
+            <td>{{ v['user'] }}</td>
+            <td>{{ v['expires'] }}</td>
+            <td>{{ v.get('bound_to', '-') }}</td>
+            <td>
+              <button class="unbind" onclick="doAction('unbind','{{k}}')">Unbind</button>
+              <button class="expire" onclick="doAction('expire','{{k}}')">Expire</button>
+              <button class="delete" onclick="doAction('delete','{{k}}')">Delete</button>
+            </td>
+          </tr>
+        {% endfor %}
+      </table>
+
+      <script>
+      async function doAction(action, key) {
+        const res = await fetch(`/${action}?key=${key}&auth={{admin_pass}}`, { method: "POST" });
+        const data = await res.json();
+        alert(JSON.stringify(data, null, 2));
+        location.reload();
+      }
+      </script>
+    </body>
+    </html>
+    """
+    return render_template_string(html, licenses=licenses, admin_pass=ADMIN_PASSWORD)
+
+
 
 # ==========================
 # 🚀 START SERVER

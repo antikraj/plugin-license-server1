@@ -36,6 +36,77 @@ def home():
     return "✅ License API running successfully!"
 
 # 🔑 ADMIN: Generate license
+# @app.route("/verify", methods=["GET"])
+# def verify_license():
+#     key = request.args.get("key")
+#     user_id = request.args.get("user_id")
+
+#     if not key or key not in licenses:
+#         return jsonify({"valid": False, "reason": "invalid_key"}), 404
+
+#     info = licenses[key]
+#     expires = datetime.strptime(info["expires"], "%Y-%m-%d")
+#     now = datetime.now()
+
+#     # Check expiration
+#     if now > expires:
+#         return jsonify({
+#             "valid": False,
+#             "user": info["user"],
+#             "reason": "expired",
+#             "expired_on": info["expires"]
+#         })
+
+#     bound_to = info.get("bound_to")
+#     in_use = info.get("in_use", False)
+#     last_check = info.get("last_check")
+
+#     # If license not bound → bind it
+#     if not bound_to:
+#         info["bound_to"] = user_id
+#         info["in_use"] = True
+#         info["last_check"] = now.strftime("%Y-%m-%d %H:%M:%S")
+#         save_licenses()
+#         return jsonify({
+#             "valid": True,
+#             "user": info["user"],
+#             "expires": info["expires"],
+#             "bound_to": user_id,
+#             "note": "License successfully bound and activated"
+#         })
+
+#     # Check if license belongs to another server
+#     if bound_to != user_id:
+#         return jsonify({
+#             "valid": False,
+#             "reason": "license_already_in_use",
+#             "bound_to": bound_to
+#         })
+
+#     # License belongs to same server
+#     # Check if already in use (other instance running)
+#     if in_use:
+#         # Allow re-verification if last check > 10 minutes ago (to handle crashed servers)
+#         if last_check:
+#             last_dt = datetime.strptime(last_check, "%Y-%m-%d %H:%M:%S")
+#             if (now - last_dt).total_seconds() < 600:  # 10 minutes
+#                 return jsonify({
+#                     "valid": False,
+#                     "reason": "license_already_in_use",
+#                     "note": "Another active session detected"
+#                 })
+
+#     # Mark as in use (renew session)
+#     info["in_use"] = True
+#     info["last_check"] = now.strftime("%Y-%m-%d %H:%M:%S")
+#     save_licenses()
+
+#     return jsonify({
+#         "valid": True,
+#         "user": info["user"],
+#         "expires": info["expires"],
+#         "bound_to": bound_to
+#     })
 @app.route("/verify", methods=["GET"])
 def verify_license():
     key = request.args.get("key")
@@ -61,8 +132,8 @@ def verify_license():
     in_use = info.get("in_use", False)
     last_check = info.get("last_check")
 
-    # If license not bound → bind it
-    if not bound_to:
+    # Case 1️⃣: License is not bound or not in use → allow new server
+    if not bound_to or not in_use:
         info["bound_to"] = user_id
         info["in_use"] = True
         info["last_check"] = now.strftime("%Y-%m-%d %H:%M:%S")
@@ -72,41 +143,44 @@ def verify_license():
             "user": info["user"],
             "expires": info["expires"],
             "bound_to": user_id,
-            "note": "License successfully bound and activated"
+            "note": "License is now active for this server"
         })
 
-    # Check if license belongs to another server
-    if bound_to != user_id:
+    # Case 2️⃣: License is already in use by another server → deny
+    if bound_to != user_id and in_use:
+        # Check timeout (if last check >10min ago, assume server crashed → free it)
+        if last_check:
+            last_dt = datetime.strptime(last_check, "%Y-%m-%d %H:%M:%S")
+            if (now - last_dt).total_seconds() > 600:  # 10 minutes
+                info["bound_to"] = user_id
+                info["in_use"] = True
+                info["last_check"] = now.strftime("%Y-%m-%d %H:%M:%S")
+                save_licenses()
+                return jsonify({
+                    "valid": True,
+                    "user": info["user"],
+                    "expires": info["expires"],
+                    "bound_to": user_id,
+                    "note": "Previous session timed out, license re-assigned"
+                })
         return jsonify({
             "valid": False,
-            "reason": "license_already_in_use",
+            "reason": "license_in_use",
             "bound_to": bound_to
         })
 
-    # License belongs to same server
-    # Check if already in use (other instance running)
-    if in_use:
-        # Allow re-verification if last check > 10 minutes ago (to handle crashed servers)
-        if last_check:
-            last_dt = datetime.strptime(last_check, "%Y-%m-%d %H:%M:%S")
-            if (now - last_dt).total_seconds() < 600:  # 10 minutes
-                return jsonify({
-                    "valid": False,
-                    "reason": "license_already_in_use",
-                    "note": "Another active session detected"
-                })
+    # Case 3️⃣: Same server rechecking → refresh timestamp
+    if bound_to == user_id:
+        info["in_use"] = True
+        info["last_check"] = now.strftime("%Y-%m-%d %H:%M:%S")
+        save_licenses()
+        return jsonify({
+            "valid": True,
+            "user": info["user"],
+            "expires": info["expires"],
+            "bound_to": bound_to
+        })
 
-    # Mark as in use (renew session)
-    info["in_use"] = True
-    info["last_check"] = now.strftime("%Y-%m-%d %H:%M:%S")
-    save_licenses()
-
-    return jsonify({
-        "valid": True,
-        "user": info["user"],
-        "expires": info["expires"],
-        "bound_to": bound_to
-    })
 # 🕒 ADMIN: Extend license expiration
 @app.route("/extend", methods=["POST"])
 def extend_license():

@@ -888,7 +888,7 @@ def admin_dashboard():
     <html>
     <head>
       <title>License Manager</title>
-      <meta http-equiv="refresh" content="3"> <!-- auto-refresh every 3s -->
+      
       <style>
         body { font-family: Arial, sans-serif; background: #f5f6fa; margin: 40px; color: #2f3640; }
         h1 { color: #192a56; }

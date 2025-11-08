@@ -130,6 +130,27 @@ def unbind_license():
 
     return jsonify({"success": True, "message": "License unbound successfully"})
 
+# 🕒 ADMIN: Force expire a license immediately
+@app.route("/expire", methods=["POST"])
+def expire_license():
+    auth = request.args.get("auth")
+    key = request.args.get("key")
+
+    if auth != ADMIN_PASSWORD:
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    if key not in licenses:
+        return jsonify({"success": False, "error": "License not found"}), 404
+
+    licenses[key]["expires"] = datetime.now().strftime("%Y-%m-%d")
+    save_licenses()
+
+    return jsonify({
+        "success": True,
+        "message": f"✅ License {key} has been expired immediately."
+    })
+
+
 
 # 🧭 ADMIN DASHBOARD PAGE
 # @app.route("/admin")
@@ -180,6 +201,8 @@ def unbind_license():
 #         const res = await fetch(`/${action}?key=${key}&auth={{admin_pass}}`, { method: "POST" });
 #         const data = await res.json();
 #         alert(JSON.stringify(data, null, 2));
+#        alert(data.message ? data.message : JSON.stringify(data, null, 2));
+
 #         location.reload();
 #       }
 #       </script>
@@ -246,7 +269,7 @@ def admin_dashboard():
         const url = `/${type}?key=${key}&auth={{admin_pass}}`;
         const res = await fetch(url, { method: "POST" });
         const data = await res.json();
-        alert(data.message || JSON.stringify(data));
+        alert(data.message ? data.message : JSON.stringify(data, null, 2));
         location.reload();
       }
 

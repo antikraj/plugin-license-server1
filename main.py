@@ -132,6 +132,61 @@ def unbind_license():
 
 
 # 🧭 ADMIN DASHBOARD PAGE
+# @app.route("/admin")
+# def admin_dashboard():
+#     auth = request.args.get("auth")
+#     if auth != ADMIN_PASSWORD:
+#         return "<h2>❌ Unauthorized</h2><p>Missing or incorrect ?auth= password in URL.</p>", 403
+
+#     html = """
+#     <html>
+#     <head>
+#       <title>License Dashboard</title>
+#       <style>
+#         body { font-family: Arial; background: #f3f3f3; margin: 20px; }
+#         h1 { color: #222; }
+#         table { border-collapse: collapse; width: 100%; background: white; }
+#         th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+#         th { background: #eee; }
+#         tr:hover { background: #f9f9f9; }
+#         button { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; }
+#         .delete { background: #e74c3c; color: white; }
+#         .expire { background: #f39c12; color: white; }
+#         .unbind { background: #3498db; color: white; }
+#       </style>
+#     </head>
+#     <body>
+#       <h1>🔐 License Manager</h1>
+#       <p>Logged in as <b>admin</b></p>
+#       <table>
+#         <tr><th>Key</th><th>User</th><th>Expires</th><th>Bound To</th><th>Actions</th></tr>
+#         {% for k, v in licenses.items() %}
+#           <tr>
+#             <td>{{ k }}</td>
+#             <td>{{ v['user'] }}</td>
+#             <td>{{ v['expires'] }}</td>
+#             <td>{{ v.get('bound_to', '-') }}</td>
+#             <td>
+#               <button class="unbind" onclick="doAction('unbind','{{k}}')">Unbind</button>
+#               <button class="expire" onclick="doAction('expire','{{k}}')">Expire</button>
+#               <button class="delete" onclick="doAction('delete','{{k}}')">Delete</button>
+#             </td>
+#           </tr>
+#         {% endfor %}
+#       </table>
+
+#       <script>
+#       async function doAction(action, key) {
+#         const res = await fetch(`/${action}?key=${key}&auth={{admin_pass}}`, { method: "POST" });
+#         const data = await res.json();
+#         alert(JSON.stringify(data, null, 2));
+#         location.reload();
+#       }
+#       </script>
+#     </body>
+#     </html>
+#     """
+#     return render_template_string(html, licenses=licenses, admin_pass=ADMIN_PASSWORD)
 @app.route("/admin")
 def admin_dashboard():
     auth = request.args.get("auth")
@@ -139,53 +194,77 @@ def admin_dashboard():
         return "<h2>❌ Unauthorized</h2><p>Missing or incorrect ?auth= password in URL.</p>", 403
 
     html = """
+    <!DOCTYPE html>
     <html>
     <head>
-      <title>License Dashboard</title>
+      <title>License Manager</title>
       <style>
-        body { font-family: Arial; background: #f3f3f3; margin: 20px; }
-        h1 { color: #222; }
-        table { border-collapse: collapse; width: 100%; background: white; }
+        body { font-family: Arial; background: #f5f6fa; margin: 40px; color: #2f3640; }
+        h1 { color: #192a56; }
+        table { border-collapse: collapse; width: 100%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
-        th { background: #eee; }
-        tr:hover { background: #f9f9f9; }
-        button { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; }
-        .delete { background: #e74c3c; color: white; }
+        th { background: #718093; color: white; }
+        tr:nth-child(even) { background: #f1f2f6; }
+        button { padding: 6px 10px; margin: 2px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .delete { background: #e84118; color: white; }
         .expire { background: #f39c12; color: white; }
-        .unbind { background: #3498db; color: white; }
+        .unbind { background: #0097e6; color: white; }
+        .generate { background: #44bd32; color: white; padding: 8px 15px; }
+        input { padding: 6px; margin-right: 5px; border-radius: 4px; border: 1px solid #ccc; }
+        form { margin-bottom: 20px; }
       </style>
     </head>
     <body>
-      <h1>🔐 License Manager</h1>
-      <p>Logged in as <b>admin</b></p>
+      <h1>🔐 License Manager Dashboard</h1>
+      <p>Welcome, Admin!</p>
+
+      <form id="createForm">
+        <input type="text" id="username" placeholder="User name" required>
+        <input type="number" id="days" placeholder="Days" value="30" required>
+        <button type="submit" class="generate">➕ Create License</button>
+      </form>
+
       <table>
         <tr><th>Key</th><th>User</th><th>Expires</th><th>Bound To</th><th>Actions</th></tr>
         {% for k, v in licenses.items() %}
-          <tr>
-            <td>{{ k }}</td>
-            <td>{{ v['user'] }}</td>
-            <td>{{ v['expires'] }}</td>
-            <td>{{ v.get('bound_to', '-') }}</td>
-            <td>
-              <button class="unbind" onclick="doAction('unbind','{{k}}')">Unbind</button>
-              <button class="expire" onclick="doAction('expire','{{k}}')">Expire</button>
-              <button class="delete" onclick="doAction('delete','{{k}}')">Delete</button>
-            </td>
-          </tr>
+        <tr>
+          <td>{{ k }}</td>
+          <td>{{ v['user'] }}</td>
+          <td>{{ v['expires'] }}</td>
+          <td>{{ v.get('bound_to', '-') }}</td>
+          <td>
+            <button class="unbind" onclick="action('unbind', '{{k}}')">Unbind</button>
+            <button class="expire" onclick="action('expire', '{{k}}')">Expire</button>
+            <button class="delete" onclick="action('delete', '{{k}}')">Delete</button>
+          </td>
+        </tr>
         {% endfor %}
       </table>
 
       <script>
-      async function doAction(action, key) {
-        const res = await fetch(`/${action}?key=${key}&auth={{admin_pass}}`, { method: "POST" });
+      async function action(type, key) {
+        const url = `/${type}?key=${key}&auth={{admin_pass}}`;
+        const res = await fetch(url, { method: "POST" });
         const data = await res.json();
-        alert(JSON.stringify(data, null, 2));
+        alert(data.message || JSON.stringify(data));
         location.reload();
       }
+
+      document.getElementById("createForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const user = document.getElementById("username").value;
+        const days = document.getElementById("days").value;
+        const url = `/generate?user=${user}&days=${days}&auth={{admin_pass}}`;
+        const res = await fetch(url, { method: "POST" });
+        const data = await res.json();
+        alert("✅ New License Created: " + data.key);
+        location.reload();
+      });
       </script>
     </body>
     </html>
     """
+
     return render_template_string(html, licenses=licenses, admin_pass=ADMIN_PASSWORD)
 
 

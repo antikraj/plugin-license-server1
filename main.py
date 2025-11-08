@@ -55,7 +55,7 @@ def verify_license():
     #     }), 403
     # ✅ Enforce plugin match strictly
     stored_plugin = info.get("plugin", "").lower().strip()
-    if not plugin_name or stored_plugin != plugin_name:
+    if not plugin_name or stored_plugin.lower() != plugin_name.lower():
                 return jsonify({
                     "valid": False,
                     "reason": "wrong_plugin_or_missing",

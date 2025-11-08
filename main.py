@@ -223,30 +223,73 @@ def backup():
             "Content-Disposition": "attachment; filename=licenses_backup.json"
         }
 
+# @app.route("/generate", methods=["POST", "GET"])
+# def generate_license():
+#     auth = request.args.get("auth")
+#     if auth != ADMIN_PASSWORD:
+#         return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+#     user = request.args.get("user", "unknown")
+#     days = request.args.get("days", DEFAULT_EXPIRY_DAYS)
+#     try:
+#         days = int(days)
+#     except ValueError:
+#         days = DEFAULT_EXPIRY_DAYS
+
+#     key = generate_key()
+#     expires = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+
+#     licenses[key] = {"user": user, "expires": expires}
+#     save_licenses()
+
+#     return jsonify({
+#         "success": True,
+#         "key": key,
+#         "user": user,
+#         "expires": expires
+#     })
+
 @app.route("/generate", methods=["POST", "GET"])
 def generate_license():
     auth = request.args.get("auth")
     if auth != ADMIN_PASSWORD:
         return jsonify({"success": False, "error": "Unauthorized"}), 403
 
+    # get parameters
     user = request.args.get("user", "unknown")
     days = request.args.get("days", DEFAULT_EXPIRY_DAYS)
+    custom_key = request.args.get("key")  # optional custom key
+
     try:
         days = int(days)
     except ValueError:
         days = DEFAULT_EXPIRY_DAYS
 
-    key = generate_key()
+    # generate or use custom key
+    if custom_key and len(custom_key.strip()) >= 6:
+        key = custom_key.strip().upper()
+        if key in licenses:
+            return jsonify({"success": False, "error": "Key already exists"}), 400
+    else:
+        key = generate_key()
+
     expires = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
 
-    licenses[key] = {"user": user, "expires": expires}
+    licenses[key] = {
+        "user": user,
+        "expires": expires,
+        "in_use": False,
+        "bound_to": None,
+        "last_check": None
+    }
     save_licenses()
 
     return jsonify({
         "success": True,
         "key": key,
         "user": user,
-        "expires": expires
+        "expires": expires,
+        "custom": bool(custom_key)
     })
 
 # 🗑️ ADMIN: Delete a license
@@ -918,13 +961,14 @@ def admin_dashboard():
       <h1>🔐 License Manager Dashboard</h1>
       <p>Welcome, Admin!</p>
 
-      <form id="createForm">
-        <input type="text" id="username" placeholder="User name" required>
-        <input type="number" id="days" placeholder="Days" value="30" required>
-        <button type="submit" class="extend">➕ Create License</button>
-        <button type="button" class="download"
-                onclick="window.location='/backup?auth={{admin_pass}}'">💾 Download Data</button>
-      </form>
+     <form id="createForm">
+  <input type="text" id="username" placeholder="User name" required>
+  <input type="number" id="days" placeholder="Days" value="30" required>
+  <input type="text" id="customKey" placeholder="(Optional) Custom License Key">
+  <button type="submit" class="extend">➕ Create License</button>
+  <button type="button" class="download" onclick="window.location='/backup?auth={{admin_pass}}'">💾 Download Data</button>
+</form>
+
 
       <input type="text" id="searchBox"
              placeholder="🔍 Search by user, key, or bound server...">
@@ -1001,16 +1045,29 @@ def admin_dashboard():
         const d=await r.json(); alert(d.message||JSON.stringify(d)); location.reload();
       }
 
-      document.getElementById("createForm").addEventListener("submit",async(e)=>{
-        e.preventDefault();
-        const user=document.getElementById("username").value;
-        const days=document.getElementById("days").value;
-        const url=`/generate?user=${user}&days=${days}&auth={{admin_pass}}`;
-        const r=await fetch(url,{method:"POST"});
-        const d=await r.json();
-        alert("✅ New License Created: "+d.key);
-        location.reload();
-      });
+     document.getElementById("createForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const user = document.getElementById("username").value;
+  const days = document.getElementById("days").value;
+  const customKey = document.getElementById("customKey").value;
+  let url = `/generate?user=${user}&days=${days}&auth={{admin_pass}}`;
+  if (customKey) url += `&key=${encodeURIComponent(customKey)}`;
+  const res = await fetch(url, { method: "POST" });
+  const data = await res.json();
+  alert(data.success
+    ? "✅ License Created: " + data.key
+    : "❌ Error: " + data.error);
+  location.reload();
+});
+
+
+setInterval(async ()=>{
+  const res = await fetch(window.location.href);
+  const text = await res.text();
+  document.body.innerHTML = text;
+}, 5000);
+
+
       </script>
     </body>
     </html>

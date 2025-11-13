@@ -317,6 +317,22 @@ def keep_alive():
             print("[KEEPALIVE] Failed:", e)
         time.sleep(KEEPALIVE_INTERVAL)
 
+
+
+
+
+# ==========================
+# 🌍 ROOT / HEALTH ENDPOINT
+# ==========================
+@app.route("/")
+def home():
+    return jsonify({
+        "status": "online",
+        "message": "Plugin License Server is running ✅!! Rex is God! Created By Rex!!",
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }), 200
+
+
 # ==========================
 # 🚀 RUN SERVER
 # ==========================

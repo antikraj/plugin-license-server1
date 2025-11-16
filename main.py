@@ -12,7 +12,7 @@ DATA_FILE = "licenses.json"
 ADMIN_USER = "Admin@admin"
 ADMIN_PASSWORD = "@adminsecret"
 DEFAULT_EXPIRY_DAYS = 30
-HEARTBEAT_TIMEOUT = 10  # seconds before freeing license if no check
+HEARTBEAT_TIMEOUT = 600  # seconds before freeing license if no check
 KEEPALIVE_INTERVAL = 600  # 10 minutes (in seconds)
 
 # ==========================
